@@ -18,6 +18,8 @@
 # under the License.
 #
 
+import gzip as gz
+
 import mock
 import tempfile
 import unittest
@@ -296,6 +298,20 @@ class TestS3Hook(unittest.TestCase):
             body = resource.get()['Body'].read()
 
             self.assertEqual(body, b'Content')
+
+    @mock_s3
+    def test_load_file_gzip(self):
+        hook = S3Hook()
+        conn = hook.get_conn()
+        # We need to create the bucket since this is all in Moto's 'virtual'
+        # AWS account
+        conn.create_bucket(Bucket="mybucket")
+        with tempfile.NamedTemporaryFile() as temp_file:
+            temp_file.write(b"Content")
+            temp_file.seek(0)
+            hook.load_file(temp_file, "my_key", 'mybucket', gzip=True)
+            resource = boto3.resource('s3').Object('mybucket', 'my_key')  # pylint: disable=no-member
+            assert gz.decompress(resource.get()['Body'].read()) == b'Content'
 
 
 if __name__ == '__main__':
